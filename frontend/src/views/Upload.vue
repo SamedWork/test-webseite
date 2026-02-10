@@ -4,6 +4,8 @@ import { ref } from "vue"
 const file = ref<File | null>(null)
 const loading = ref(false)
 
+const baseUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"
+
 function onDrop(e: DragEvent) {
   e.preventDefault()
   file.value = e.dataTransfer?.files[0] ?? null
@@ -19,9 +21,6 @@ async function upload() {
   try {
     const form = new FormData()
     form.append("file", file.value)
-
-    // ÄNDERUNG HIER: Nutze die Umgebungsvariable oder einen Fallback
-    const baseUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"
     
     const res = await fetch(`${baseUrl}/upload/`, { // Endslash beachten, falls im Backend so definiert
       method: "POST",
@@ -62,11 +61,11 @@ async function upload() {
         Versorgungsvereinbarung erstellen
       </h1>
         <p class="text-sm text-slate-400 mb-6 text-center">
-            <a
-                href="http://127.0.0.1:8000/template"
-                class="hover:text-cyan-400 underline underline-offset-4"
+            <a 
+              :href="`${baseUrl}/template`" 
+              class="hover:text-cyan-400 underline underline-offset-4"
             >
-                Template Sheet Download
+              Template Sheet Download
             </a>
         </p>
       <!-- Dropzone -->

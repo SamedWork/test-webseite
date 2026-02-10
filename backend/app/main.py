@@ -7,8 +7,8 @@ app = FastAPI()
 
 # Ersetze die lokalen URLs durch deine echte Frontend-URL
 allow_origins = [
-    "http://localhost:5173",          # Für lokale Entwicklung
-    "https://dein-frontend.vercel.app" # DEINE PRODUKTIV-URL
+    "http://localhost:5173",
+    "https://test-webseite.vercel.app" # Deine neue Vercel-URL
 ]
 
 app.add_middleware(

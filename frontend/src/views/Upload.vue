@@ -63,7 +63,7 @@ async function upload() {
 
     const cleanUrl = baseUrl.replace(/\/$/, "")
 
-    const res = await fetch(`${cleanUrl}/upload/`, {
+    const res = await fetch(`${cleanUrl}/upload`, {
       method: "POST",
       body: form,
     })

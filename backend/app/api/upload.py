@@ -64,27 +64,24 @@ def normalize_street_list(value: str) -> str:
 
     parts = [p.strip() for p in value.split(",") if p.strip()]
     result = []
-
     current_street = None
+    
+    # Erkennt "Straße 123", "Str. 123a" oder "Straße 123 a"
     street_re = re.compile(r"^(.+?)\s+(\d.*)$")
 
     for part in parts:
         m = street_re.match(part)
         if m:
-            # volle Straße + Nummer
             street, number = m.groups()
-            current_street = street
-            result.append(f"{street} {number}")
+            current_street = street.strip()
+            result.append(f"{current_street} {number.strip()}")
+        elif current_street:
+            # WICHTIG: Hier wird aus "b" -> "Bahner Str. b"
+            result.append(f"{current_street} {part}")
         else:
-            # letzte Straße verwenden
-            if current_street:
-                result.append(f"{current_street} {part}")
-            else:
-                # Fallback: nichts ableitbar
-                result.append(part)
+            result.append(part)
 
     return ", ".join(result)
-
 def is_empty(v):
     return (
         v is None
@@ -96,28 +93,49 @@ def is_weg(row: dict) -> bool:
     return is_empty(row.get("Vertragsp. Firma")) and is_empty(row.get("Vertragsp. Name"))
 
 def shorten_streets(street_str: str) -> str:
-    parts = [p.strip() for p in street_str.split(",") if p.strip()]
+    if not street_str:
+        return ""
+    
+    parts = [p.strip() for p in str(street_str).split(",") if p.strip()]
     streets = OrderedDict()
 
     for part in parts:
-        match = re.match(r"(.+?)\s+(\d+.*)", part)
-        if not match:
-            streets.setdefault(part, [])
-            continue
-
-        name, number = match.groups()
-        streets.setdefault(name, []).append(number)
+        # Wir versuchen den Split an der ERSTEN Stelle, wo eine Zahl auftaucht
+        # Das ist stabiler als rsplit, wenn Hausnummern Leerzeichen haben (8 a)
+        match = re.search(r"\s+\d", part)
+        
+        if match:
+            split_pos = match.start()
+            name = part[:split_pos].strip()
+            number = part[split_pos:].strip()
+            streets.setdefault(name, []).append(number)
+        else:
+            # Fallback: Wenn kein " Name Nummer" erkannt wird (z.B. nur "b")
+            # Schauen wir, ob wir das an die letzte Straße hängen können
+            if " " in part:
+                # Letzter Versuch: Split am letzten Leerzeichen
+                name, number = part.rsplit(" ", 1)
+                streets.setdefault(name.strip(), []).append(number.strip())
+            elif streets:
+                last_street = list(streets.keys())[-1]
+                streets[last_street].append(part)
+            else:
+                streets.setdefault(part.strip(), [])
 
     result = []
     for name, numbers in streets.items():
         if numbers:
-            result.append(f"{name} {','.join(numbers)}")
+            # Duplikate filtern und zusammenfügen
+            unique_nos = list(OrderedDict.fromkeys(numbers))
+            result.append(f"{name} {', '.join(unique_nos)}")
         else:
             result.append(name)
 
     return ", ".join(result)
 
 router = APIRouter(prefix="/upload")
+
+VV2_TEMPLATE_PATH = os.path.join("app", "templates", "VV_2_Vorlage.pdf")
 
 @router.post("/")
 async def upload_excel(
@@ -150,11 +168,14 @@ async def upload_excel(
     for i, row in enumerate(rows):
         # VV immer erzeugen
         vv_pdf = create_vv_pdf(row, i, workdir)
-        pdfs_to_merge = [vv_pdf]
+        pdfs_to_merge = [vv_pdf, VV2_TEMPLATE_PATH]
 
         # Mehrere Objekte?
         objects = split_multiple_objects(row.get("Objekt Str + Hnr", ""))
-        we_list = parse_we_list(row.get("Anzahl WE"))
+
+        raw_val = row.get("Anzahl WE", "")
+        raw_we_str = str(raw_val).replace(".", ",")
+        we_list = [int(p.strip()) for p in raw_we_str.split(",") if p.strip().isdigit()]
 
         if len(objects) > 1:
             CHUNK_SIZE = 12

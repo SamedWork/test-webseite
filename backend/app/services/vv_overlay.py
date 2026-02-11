@@ -63,21 +63,35 @@ def split_strasse_hausnummer(text: str):
 
     return main_street, ",".join(house_numbers)
 def parse_anzahl_we(value):
-    if value is None:
+    if value is None or str(value).strip() == "":
         return None
 
-    value = str(value).strip()
-
-    if "," in value:
-        total = 0
-        for part in value.split(","):
-            part = part.strip()
-            if part.isdigit():
-                total += int(part)
-        return total if total > 0 else None
-
-    if value.isdigit():
+    # FALL 1: Excel hat "1,2" als Float (Dezimalzahl) interpretiert
+    if isinstance(value, float):
+        # Prüfen, ob es eine Nachkommastelle gibt (wie bei 1.2)
+        if not value.is_integer():
+            # Wir machen aus 1.2 -> "1,2" -> [1, 2] -> Summe 3
+            s_val = str(value).replace(".", ",")
+            parts = [p for p in s_val.split(",") if p.isdigit()]
+            return sum(int(p) for p in parts)
         return int(value)
+
+    if isinstance(value, int):
+        return value
+
+    # FALL 2: String-Verarbeitung (z.B. "1, 2" oder "1,2,3")
+    # Wir entfernen alle Leerzeichen und splitten am Komma
+    value_str = str(value).replace(" ", "")
+    if "," in value_str:
+        # Extrahiert alle Zahlen zwischen den Kommas
+        parts = [p for p in value_str.split(",") if p.isdigit()]
+        if parts:
+            return sum(int(p) for p in parts)
+        return None
+    
+    # Fall 3: Reiner Zahlen-String "10"
+    if value_str.isdigit():
+        return int(value_str)
 
     return None
 def split_multiple_objects(value: str) -> list[str]:
@@ -185,29 +199,53 @@ def draw_text_in_box(
     for line in final_lines:
         c.drawString(x, y, line)
         y -= line_height
-def is_empty(v):
-    return (
-        v is None
-        or (isinstance(v, float) and v != v)  # NaN
-        or str(v).strip() == ""
-    )
+def is_empty(*v_args):
+    # Falls nur ein Argument übergeben wurde, verhalte dich wie vorher
+    # Falls mehrere übergeben wurden, prüfe ob MINDESTENS eines leer ist
+    for v in v_args:
+        if (
+            v is None
+            or (isinstance(v, float) and v != v)  # NaN
+            or str(v).strip() == ""
+        ):
+            return True
+    return False
 def shorten_streets(street_str: str) -> str:
-    parts = [p.strip() for p in street_str.split(",") if p.strip()]
+    if not street_str:
+        return ""
+    
+    parts = [p.strip() for p in str(street_str).split(",") if p.strip()]
     streets = OrderedDict()
 
     for part in parts:
-        match = re.match(r"(.+?)\s+(\d+.*)", part)
-        if not match:
-            streets.setdefault(part, [])
-            continue
-
-        name, number = match.groups()
-        streets.setdefault(name, []).append(number)
+        # Wir versuchen den Split an der ERSTEN Stelle, wo eine Zahl auftaucht
+        # Das ist stabiler als rsplit, wenn Hausnummern Leerzeichen haben (8 a)
+        match = re.search(r"\s+\d", part)
+        
+        if match:
+            split_pos = match.start()
+            name = part[:split_pos].strip()
+            number = part[split_pos:].strip()
+            streets.setdefault(name, []).append(number)
+        else:
+            # Fallback: Wenn kein " Name Nummer" erkannt wird (z.B. nur "b")
+            # Schauen wir, ob wir das an die letzte Straße hängen können
+            if " " in part:
+                # Letzter Versuch: Split am letzten Leerzeichen
+                name, number = part.rsplit(" ", 1)
+                streets.setdefault(name.strip(), []).append(number.strip())
+            elif streets:
+                last_street = list(streets.keys())[-1]
+                streets[last_street].append(part)
+            else:
+                streets.setdefault(part.strip(), [])
 
     result = []
     for name, numbers in streets.items():
         if numbers:
-            result.append(f"{name} {','.join(numbers)}")
+            # Duplikate filtern und zusammenfügen
+            unique_nos = list(OrderedDict.fromkeys(numbers))
+            result.append(f"{name} {', '.join(unique_nos)}")
         else:
             result.append(name)
 
@@ -228,28 +266,38 @@ def split_strasse_hausnummer_lexico(text: str):
     if not text:
         return None, None
 
+    # 1. Wir nutzen die Normalisierung, falls noch nicht geschehen
+    # "Bahner Str. 8 a, b, c" -> ["Bahner Str. 8 a", "Bahner Str. b", ...]
     parts = [p.strip() for p in text.split(",") if p.strip()]
     pairs = []
 
     for part in parts:
-        match = re.match(r"(.+?)\s+(\d+[a-zA-Z]?(?:/\d+)?)$", part)
-        if not match:
-            continue
-
-        street, number = match.groups()
-        pairs.append((street, number))
+        # Wir suchen die POSITION der ersten Ziffer
+        match = re.search(r"\d", part)
+        if match:
+            idx = match.start()
+            # Alles VOR der ersten Ziffer ist die Straße
+            street = part[:idx].strip()
+            # Alles AB der ersten Ziffer ist die Nummer
+            number = part[idx:].strip()
+            pairs.append((street, number))
+        else:
+            # Fallback für Teile wie "Bahner Str. b" (ohne Ziffer)
+            # Hier nehmen wir rsplit am letzten Leerzeichen
+            if " " in part:
+                s, n = part.rsplit(" ", 1)
+                pairs.append((s.strip(), n.strip()))
 
     if not pairs:
-        return None, None
+        return text, ""
 
-    # kleinste Hausnummer
-    smallest_number = min(number for _, number in pairs)
+    # 2. Den Teil mit der "kleinsten" Hausnummer finden
+    # Wir sortieren so, dass 8a vor 9 kommt (natürliche Sortierung)
+    def natural_sort_key(p):
+        num = re.search(r"\d+", p[1])
+        return int(num.group()) if num else 9999
 
-    # alle Straßen mit dieser Hausnummer
-    candidates = [(street, number) for street, number in pairs if number == smallest_number]
-
-    # lexikografisch kleinste Straße
-    chosen_street, chosen_number = min(candidates, key=lambda x: x[0])
+    chosen_street, chosen_number = min(pairs, key=natural_sort_key)
 
     return chosen_street, chosen_number
 
@@ -328,7 +376,14 @@ def create_vv_pdf(row: dict, index: int, workdir: str) -> str:
             c.setFont("Helvetica", 9)
             c.drawString(57.5 * mm, 83.5 * mm, "X")
     
-    # -------------------------------------------- Felder handeling --------------------------------------------
+    # Kreuz bei Ansprechpartner (8)
+    if not is_empty("Bevollm. Firma", "Bevollm. Herr/Frau (H/F)", "Bevollm. Name"):
+        c.setFont("Helvetica", 9)
+        c.drawString(141.5 * mm, 187.5 * mm, "X")
+    else:
+        c.setFont("Helvetica", 9)
+        c.drawString(115 * mm, 187.5 * mm, "X")
+    # ------------------------------------------- Felder handeling --------------------------------------------
     for field, (x, y, font_size, box_width) in FIELD_MAPPING.items():
 
         # DIREKTZUGRIFF auf ROW

@@ -2,6 +2,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from app.api.upload import router as upload_router
+from app.api import admin
 
 app = FastAPI()
 
@@ -22,6 +23,7 @@ app.add_middleware(
 
 # Upload API
 app.include_router(upload_router)
+app.include_router(admin.router)
 
 # Excel Template Download
 @app.get("/template")

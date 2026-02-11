@@ -1,41 +1,39 @@
 <script setup lang="ts">
 import { ref } from "vue"
 
+const baseUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+
 const file = ref<File | null>(null)
 const loading = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
-
-const baseUrl =
-  import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000"
 
 function openExplorer() {
   fileInput.value?.click()
 }
 
 function onDrop(e: DragEvent) {
-  e.preventDefault()
-
-  const droppedFiles = e.dataTransfer?.files
-
-  if (!droppedFiles || droppedFiles.length === 0) {
-    file.value = null
-    return
+  e.preventDefault();
+  const files = e.dataTransfer?.files;
+  
+  // Wir prüfen auf die erste Datei und stellen sicher, dass sie existiert
+  const firstFile = files ? files[0] : null;
+  if (firstFile) {
+    file.value = firstFile;
+  } else {
+    file.value = null;
   }
-
-  const firstFile = droppedFiles.item(0)
-  file.value = firstFile ?? null
 }
 
 function onFileSelected(e: Event) {
-  const target = e.target as HTMLInputElement | null
-
-  if (!target?.files || target.files.length === 0) {
-    file.value = null
-    return
+  const target = e.target as HTMLInputElement;
+  const files = target.files;
+  
+  const firstFile = files ? files[0] : null;
+  if (firstFile) {
+    file.value = firstFile;
+  } else {
+    file.value = null;
   }
-
-  const firstFile = target.files.item(0)
-  file.value = firstFile ?? null
 }
 
 function removeFile(e: Event) {

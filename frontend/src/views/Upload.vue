@@ -14,25 +14,16 @@ function openExplorer() {
 function onDrop(e: DragEvent) {
   e.preventDefault();
   const files = e.dataTransfer?.files;
-  
-  // Wir prüfen auf die erste Datei und stellen sicher, dass sie existiert
-  const firstFile = files ? files[0] : null;
-  if (firstFile) {
-    file.value = firstFile;
-  } else {
-    file.value = null;
+  if (files && files.length > 0) {
+    file.value = files[0] as File; // Das "as File" löst den TS-Fehler
   }
 }
 
 function onFileSelected(e: Event) {
   const target = e.target as HTMLInputElement;
   const files = target.files;
-  
-  const firstFile = files ? files[0] : null;
-  if (firstFile) {
-    file.value = firstFile;
-  } else {
-    file.value = null;
+  if (files && files.length > 0) {
+    file.value = files[0] as File; // Das "as File" löst den TS-Fehler
   }
 }
 

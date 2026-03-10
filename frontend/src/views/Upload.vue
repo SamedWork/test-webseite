@@ -67,7 +67,7 @@ async function upload() {
 
     const a = document.createElement("a")
     a.href = url
-    a.download = "result.zip"
+    a.download = "Versorgungsvereinbarungen.zip"
     document.body.appendChild(a)
     a.click()
 

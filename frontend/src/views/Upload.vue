@@ -55,6 +55,7 @@ async function upload() {
     const res = await fetch(`${cleanUrl}/upload/`, {
       method: "POST",
       body: form,
+      mode: 'cors',
     })
 
     if (!res.ok) {

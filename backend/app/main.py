@@ -9,7 +9,7 @@ app = FastAPI()
 # Ersetze die lokalen URLs durch deine echte Frontend-URL
 allow_origins = [
     "http://localhost:5173",
-    "https://test-webseite.vercel.app" # Deine neue Vercel-URL
+    "https://vv-webseite.vercel.app" # Deine neue Vercel-URL
 ]
 
 app.add_middleware(
@@ -18,6 +18,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"]
 )
 
 

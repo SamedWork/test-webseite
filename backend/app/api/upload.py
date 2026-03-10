@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse
 from collections import OrderedDict
 from app.services.excel import read_excel
 from app.services.vv_overlay import create_vv_pdf
+from app.services.vv2_overlay import create_vv2_pdf
 from app.services.ol_overlay import create_ol_pdf
 from app.services.pdf_merge import merge_pdfs
 from app.services.zip import zip_files
@@ -135,8 +136,6 @@ def shorten_streets(street_str: str) -> str:
 
 router = APIRouter(prefix="/upload")
 
-VV2_TEMPLATE_PATH = os.path.join("app", "templates", "VV_2_Vorlage.pdf")
-
 @router.post("/")
 async def upload_excel(
     file: UploadFile = File(...),
@@ -166,9 +165,14 @@ async def upload_excel(
     final_pdfs = []
 
     for i, row in enumerate(rows):
-        # VV immer erzeugen
+        # 1. VV Seite 1 erzeugen
         vv_pdf = create_vv_pdf(row, i, workdir)
-        pdfs_to_merge = [vv_pdf, VV2_TEMPLATE_PATH]
+        
+        # 2. VV Seite 2 erzeugen (statt nur den Pfad zum Template zu nehmen)
+        vv2_pdf = create_vv2_pdf(row, i, workdir) 
+        
+        # Initialisiere die Liste für den Merge mit beiden bearbeiteten Seiten
+        pdfs_to_merge = [vv_pdf, vv2_pdf]
 
         # Mehrere Objekte?
         objects = split_multiple_objects(row.get("Objekt Str + Hnr", ""))

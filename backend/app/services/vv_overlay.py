@@ -262,34 +262,43 @@ def split_word(word: str):
     if current:
         parts.append(current)
     return parts
-def split_strasse_hausnummer_lexico(text: str):
+def split_strasse_hausnummer(text: str):
     if not text:
         return None, None
 
-    # 1. Wir nutzen die Normalisierung, falls noch nicht geschehen
-    # "Bahner Str. 8 a, b, c" -> ["Bahner Str. 8 a", "Bahner Str. b", ...]
+    # Wir splitten nicht nur hart am Komma, sondern trimmen auch
     parts = [p.strip() for p in text.split(",") if p.strip()]
-    pairs = []
+
+    main_street = None
+    house_numbers = []
 
     for part in parts:
-        # Wir suchen die POSITION der ersten Ziffer
-        match = re.search(r"\d", part)
-        if match:
-            idx = match.start()
-            # Alles VOR der ersten Ziffer ist die Straße
-            street = part[:idx].strip()
-            # Alles AB der ersten Ziffer ist die Nummer
-            number = part[idx:].strip()
-            pairs.append((street, number))
-        else:
-            # Fallback für Teile wie "Bahner Str. b" (ohne Ziffer)
-            # Hier nehmen wir rsplit am letzten Leerzeichen
-            if " " in part:
-                s, n = part.rsplit(" ", 1)
-                pairs.append((s.strip(), n.strip()))
+        # NEUER REGEX: 
+        # (.+?) -> Straße (greedy bis zur Nummer)
+        # \s+ -> Mindestens ein Leerzeichen
+        # (\d+.*) -> Die Nummer beginnt mit einer Ziffer, darf aber danach alles enthalten (a, b, /1 etc.)
+        match = re.search(r"(.+?)\s+(\d+.*)$", part)
+        
+        if not match:
+            # Falls gar keine Ziffer gefunden wird, ist es vielleicht nur ein Buchstabe (Nachtrag)
+            if main_street and house_numbers:
+                house_numbers.append(part)
+            continue
 
-    if not pairs:
+        street, number = match.groups()
+
+        if main_street is None:
+            main_street = street
+
+        # Wenn die Straße gleich bleibt oder wir im ersten Durchgang sind
+        if street == main_street:
+            house_numbers.append(number)
+
+    if not main_street:
+        # Fallback: Wenn der Regex gar nicht greift, gib den Text als Straße zurück
         return text, ""
+
+    return main_street, ", ".join(house_numbers)
 
     # 2. Den Teil mit der "kleinsten" Hausnummer finden
     # Wir sortieren so, dass 8a vor 9 kommt (natürliche Sortierung)
